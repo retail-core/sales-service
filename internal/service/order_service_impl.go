@@ -5,8 +5,10 @@ import (
 	"fmt"
 
 	"github.com/gofrs/uuid"
+	"github.com/retail-core/sales-service/internal/client"
 	"github.com/retail-core/sales-service/internal/dtos"
 	"github.com/retail-core/sales-service/internal/models"
+	"github.com/retail-core/sales-service/internal/mq"
 	"github.com/retail-core/sales-service/internal/repository"
 	// TODO: Inventory service client import will go here (e.g., github.com/your-username/inventory-client)
 	// TODO: RabbitMQ client import will go here (e.g., github.com/streadway/amqp)
@@ -18,13 +20,15 @@ import (
 // OrderServiceImpl is the concrete implementation of OrderService.
 type OrderServiceImpl struct {
 	OrderRepo repository.OrderRepository
-	// InventoryClient InventoryServiceClient (to be added)
-	// MQPublisher MessageQueuePublisher (to be added)
+	InventoryClient client.InventoryClient
+	MQPublisher mq.MessageQueuePublisher
 }
 
-func NewOrderServiceImpl(repo repository.OrderRepository) *OrderServiceImpl {
+func NewOrderServiceImpl(repo repository.OrderRepository, inventoryClient client.InventoryClient, mqPublisher mq.MessageQueuePublisher) *OrderServiceImpl {
 	return &OrderServiceImpl{
 		OrderRepo: repo,
+		InventoryClient: inventoryClient,
+		MQPublisher: mqPublisher,
 	}
 }
 

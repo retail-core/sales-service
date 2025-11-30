@@ -28,11 +28,11 @@ type Order struct {
 
 	TotalAmount 	float64 		`gorm:"type:numeric(10, 2);not null"`
 
-	Status       	OrderStatus 	`gorm:"type:enum('PENDING','COMPLETED','CANCELED');default:'PENDING'"`
+	Status       	OrderStatus 	`gorm:"type:varchar(25);default:'PENDING'"`
 
-	PaymentMethod 	PaymentMethod 	`gorm:"type:enum('CASH','TRANSFER');default:'CASH'"`
+	PaymentMethod 	PaymentMethod 	`gorm:"type:varchar(25);default:'CASH'"`
 
-	Channel      	OrderChannel 	`gorm:"type:enum('ONLINE','IN_STORE');default:'IN_STORE'"`
+	Channel      	OrderChannel 	`gorm:"type:varchar(25);default:'IN_STORE'"`
 
 	SoldBy	  		*string 		`gorm:"type:varchar(100);default:null"`
 	

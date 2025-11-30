@@ -5,23 +5,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/retail-core/sales-service/internal/config"
-	"github.com/retail-core/sales-service/internal/db"
+	"github.com/retail-core/sales-service/internal/client"
 	"github.com/retail-core/sales-service/internal/handler"
+	"github.com/retail-core/sales-service/internal/mq"
 	"github.com/retail-core/sales-service/internal/repository"
 	"github.com/retail-core/sales-service/internal/service"
-	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
-func ConfigureRoutes(config config.Config, _logger *zap.Logger) http.Handler {
-	
-	database, err := db.InitDB(config)
-	if err != nil {
-		_logger.Fatal("Database initialization failed", zap.Error(err))
-	}
+func ConfigureRoutes(database *gorm.DB, mqPublisher *mq.RabbitMQConnection) http.Handler {
 
 	orderRepo := repository.NewGormOrderRepository(database)
-	orderService := service.NewOrderServiceImpl(orderRepo)
+
+	inventoryClient := client.NewMockInventoryClient()
+
+
+	orderService := service.NewOrderServiceImpl(orderRepo, inventoryClient, mqPublisher)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	

@@ -5,7 +5,9 @@ import (
 	"net/http"
 
 	"github.com/retail-core/sales-service/internal/dtos"
+	"github.com/retail-core/sales-service/internal/httpx"
 	"github.com/retail-core/sales-service/internal/service"
+	"github.com/retail-core/sales-service/internal/validation"
 )
 
 type OrderHandler struct {
@@ -20,22 +22,19 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	var req dtos.CreateOrderRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		httpx.WriteError(w, err)
+	}
+
+	if err := validation.ValidateStruct(req); err != nil {
+		httpx.WriteError(w, err)
 		return
 	}
 
 	order, err := h.Service.Create(r.Context(), req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.WriteError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	
-	// Encode the created order (or a simplified response DTO)
-	if err := json.NewEncoder(w).Encode(order); err != nil {
-		// Log the error but can't change status since headers are sent
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-	}
+	httpx.WriteJSON(w, http.StatusCreated, order)
 }
