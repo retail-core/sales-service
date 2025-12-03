@@ -15,14 +15,12 @@ import (
 
 const (
 	// Exchange name for inventory events (Adjust as needed)
-	InventoryExchange = "inventory_events" 
+	InventoryExchange = "inventory_events"
 	// Routing key for stock confirmation
-	ConfirmationKey   = "inventory.reservation.confirm" 
+	ConfirmationKey = "inventory.reservation.confirm"
 	// Routing key for stock rollback
-	RollbackKey       = "inventory.reservation.rollback" 
+	RollbackKey = "inventory.reservation.rollback"
 )
-
-
 
 // NewRabbitMQPublisher establishes the connection and channel.
 func DeclareExchange(mq *RabbitMQConnection, exchangeName string) error {
@@ -61,47 +59,33 @@ func (p *RabbitMQConnection) publish(ctx context.Context, routingKey string, eve
 		false,             // mandatory
 		false,             // immediate
 		amqp091.Publishing{
-			ContentType: "application/json",
-			Body:        body,
+			ContentType:  "application/json",
+			Body:         body,
 			DeliveryMode: amqp091.Persistent, // Message survives a broker restart
-			Timestamp:   time.Now(),
+			Timestamp:    time.Now(),
 		})
 }
 
-// PublishConfirmation sends the stock confirmation event.
-func (p *RabbitMQConnection) PublishConfirmation(ctx context.Context, reservationID uuid.UUID, deductions map[string]int) error {
+func (p *RabbitMQConnection) PublishConfirmation(ctx context.Context, reservationID uuid.UUID) error {
 	event := struct {
-		// OrderID       uuid.UUID      `json:"order_id"`
-		ReservationID uuid.UUID      `json:"reservation_id"`
-		Deductions    map[string]int `json:"deductions"`
-		Timestamp     time.Time      `json:"timestamp"`
+		ReservationID uuid.UUID `json:"reservation_id"`
 	}{
-		// OrderID:       orderID,
 		ReservationID: reservationID,
-		Deductions:    deductions,
-		Timestamp:     time.Now(),
 	}
+	logger.L().Info("Publishing confirmation event", zap.String("reservation_id", reservationID.String()))
 	return p.publish(ctx, ConfirmationKey, event)
 }
 
-// PublishRollback sends the stock rollback event.
-func (p *RabbitMQConnection) PublishRollback(ctx context.Context, orderID uuid.UUID, reservationID uuid.UUID, deductions map[string]int) error {
-	// The event structure is the same, but the routing key changes the consumer logic.
+func (p *RabbitMQConnection) PublishRollback(ctx context.Context, reservationID uuid.UUID) error {
 	event := struct {
-		OrderID       uuid.UUID      `json:"order_id"`
-		ReservationID uuid.UUID      `json:"reservation_id"`
-		Deductions    map[string]int `json:"deductions"`
-		Timestamp     time.Time      `json:"timestamp"`
+		ReservationID uuid.UUID `json:"reservation_id"`
 	}{
-		OrderID:       orderID,
 		ReservationID: reservationID,
-		Deductions:    deductions,
-		Timestamp:     time.Now(),
 	}
+	logger.L().Info("Publishing rollback event", zap.String("reservation_id", reservationID.String()))
 	return p.publish(ctx, RollbackKey, event)
 }
 
-// Close closes the channel and connection.
 func (p *RabbitMQConnection) Close() {
 	if p.channel != nil {
 		p.channel.Close()

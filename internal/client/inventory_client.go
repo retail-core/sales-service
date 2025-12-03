@@ -4,31 +4,26 @@ import (
 	"context"
 
 	"github.com/gofrs/uuid"
+	"github.com/retail-core/sales-service/internal/dtos"
 )
 
-// ItemRequest represents the minimal data sent for reservation/lookup.
-type ItemRequest struct {
-	ProductID string `json:"product_id"`
-	Quantity  int    `json:"quantity"`
+type InventorySnapshot struct {
+	InventoryID string  `json:"inventory_id"`
+	Name        string  `json:"name"`
+	UnitPrice   float64 `json:"unit_price"`
+	Quantity    int32   `json:"quantity,omitempty"`
+	ImageUrl    string  `json:"image_url,omitempty"`
 }
 
-// ProductSnapshot represents the critical data returned by the Inventory Service.
-type ProductSnapshot struct {
-	ProductID string  `json:"product_id"`
-	Name      string  `json:"name"`
-	Price     float64 `json:"unit_price"`
-	// Note: We don't need 'AvailableStock' back, as the reservation step handles availability.
-}
-
-// ReservationResponse bundles the snapshots and the reservation ID.
 type ReservationResponse struct {
-	ReservationID uuid.UUID
-	Snapshots     []ProductSnapshot
+	ReservationID uuid.UUID `json:"reservation_id"`
+	Snapshots     []InventorySnapshot `json:"snapshots"`
 }
 
-// InventoryClient defines the contract for synchronous interaction with the Inventory Service.
+type ReservationRequest struct {
+	Items []dtos.OrderItemRequest `json:"items" validate:"required,dive,required"`
+}
+
 type InventoryClient interface {
-	// ReserveAndGetSnapshot attempts to claim stock and retrieve immutable details 
-	// for the requested items. Returns a Reservation ID on success.
-	ReserveAndGetSnapshot(ctx context.Context, items []ItemRequest) (*ReservationResponse, error)
+	ReserveAndGetSnapshot(ctx context.Context, storeID uuid.UUID, items []dtos.OrderItemRequest) (*ReservationResponse, error)
 }

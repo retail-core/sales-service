@@ -36,7 +36,7 @@ func main() {
 
 	defer publisher.Close()
 
-	r := api.ConfigureRoutes(database, publisher)
+	r := api.ConfigureRoutes(database, publisher, config.INVENTORY_SERVICE_URL)
 
 	go func() {
 		err = http.ListenAndServe(":"+config.Port, r)

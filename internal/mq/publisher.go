@@ -8,12 +8,9 @@ import (
 
 // MessageQueuePublisher defines the contract for sending asynchronous events.
 type MessageQueuePublisher interface {
-	// PublishConfirmation sends an event to confirm the reservation and deduct stock permanently.
-	PublishConfirmation(ctx context.Context, reservationID uuid.UUID, deductions map[string]int) error
+	PublishConfirmation(ctx context.Context, reservationID uuid.UUID) error
 	
-	// PublishRollback sends an event to roll back a reservation (stock back to available).
-	PublishRollback(ctx context.Context, orderID uuid.UUID, reservationID uuid.UUID, deductions map[string]int) error
+	PublishRollback(ctx context.Context, reservationID uuid.UUID) error
 	
-	// Close cleans up the connection.
 	Close()
 }

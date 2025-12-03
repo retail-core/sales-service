@@ -1,17 +1,19 @@
 package models
 
+import "github.com/gofrs/uuid"
+
 type OrderStatus string
 type PaymentMethod string
 type OrderChannel string
 
 const (
-    OrderPending   OrderStatus = "PENDING"
-    OrderCompleted OrderStatus = "COMPLETED"
-    OrderCanceled  OrderStatus = "CANCELED"
+	OrderPending   OrderStatus = "PENDING"
+	OrderCompleted OrderStatus = "COMPLETED"
+	OrderCanceled  OrderStatus = "CANCELED"
 )
 
 const (
-	PaymentCash PaymentMethod = "CASH"
+	PaymentCash         PaymentMethod = "CASH"
 	PaymentBankTransfer PaymentMethod = "TRANSFER"
 )
 
@@ -20,27 +22,26 @@ const (
 	OrderChannelInStore OrderChannel = "IN_STORE"
 )
 
-
 type Order struct {
 	Base
 
-	CustomerName 	*string			`gorm:"type:varchar(255);default:null"`
+	StoreID uuid.UUID `gorm:"type:varchar(100);not null"`
 
-	TotalAmount 	float64 		`gorm:"type:numeric(10, 2);not null"`
+	CustomerName *string `gorm:"type:varchar(255);default:null"`
 
-	Status       	OrderStatus 	`gorm:"type:varchar(25);default:'PENDING'"`
+	TotalAmount float64 `gorm:"type:numeric(10, 2);not null"`
 
-	PaymentMethod 	PaymentMethod 	`gorm:"type:varchar(25);default:'CASH'"`
+	Status OrderStatus `gorm:"type:varchar(25);default:'PENDING'"`
 
-	Channel      	OrderChannel 	`gorm:"type:varchar(25);default:'IN_STORE'"`
+	PaymentMethod PaymentMethod `gorm:"type:varchar(25);default:'CASH'"`
 
-	SoldBy	  		*string 		`gorm:"type:varchar(100);default:null"`
-	
-	Items	   		[]OrderItem   	`gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE;"`
+	Channel OrderChannel `gorm:"type:varchar(25);default:'IN_STORE'"`
 
+	SoldBy *string `gorm:"type:varchar(100);default:null"`
+
+	Items []OrderItem `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE;"`
 }
 
 func (Order) TableName() string {
 	return "orders"
 }
-

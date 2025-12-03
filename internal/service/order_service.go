@@ -9,7 +9,7 @@ import (
 )
 
 type OrderService interface {
-	Create(ctx context.Context, req dtos.CreateOrderRequest) (*models.Order, error)
+	Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, error)
 
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error)
 

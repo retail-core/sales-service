@@ -13,12 +13,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func ConfigureRoutes(database *gorm.DB, mqPublisher *mq.RabbitMQConnection) http.Handler {
+func ConfigureRoutes(database *gorm.DB, mqPublisher *mq.RabbitMQConnection, invServiceUrl string) http.Handler {
 
 	orderRepo := repository.NewGormOrderRepository(database)
 
-	inventoryClient := client.NewMockInventoryClient()
-
+	inventoryClient := client.NewHttpInventoryClient(invServiceUrl)
 
 	orderService := service.NewOrderServiceImpl(orderRepo, inventoryClient, mqPublisher)
 	orderHandler := handler.NewOrderHandler(orderService)
@@ -35,7 +34,7 @@ func ConfigureRoutes(database *gorm.DB, mqPublisher *mq.RabbitMQConnection) http
 	})
 
 	r.Route("/v1", func(v1 chi.Router) {
-		v1.Post("/orders", orderHandler.CreateOrder)
+		v1.Post("/stores/{store_id}/orders", orderHandler.CreateOrder)
 	})
 
 	return r

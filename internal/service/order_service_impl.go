@@ -7,9 +7,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/retail-core/sales-service/internal/client"
 	"github.com/retail-core/sales-service/internal/dtos"
+	"github.com/retail-core/sales-service/internal/logger"
 	"github.com/retail-core/sales-service/internal/models"
 	"github.com/retail-core/sales-service/internal/mq"
 	"github.com/retail-core/sales-service/internal/repository"
+	"go.uber.org/zap"
 	// TODO: Inventory service client import will go here (e.g., github.com/your-username/inventory-client)
 	// TODO: RabbitMQ client import will go here (e.g., github.com/streadway/amqp)
 )
@@ -32,54 +34,49 @@ func NewOrderServiceImpl(repo repository.OrderRepository, inventoryClient client
 	}
 }
 
-func (s *OrderServiceImpl) Create(ctx context.Context, req dtos.CreateOrderRequest) (*models.Order, error) {
-	// 1. **Inventory Reservation & Snapshot (Simulation)**
-	// In a real scenario, this is where we call the Inventory Service:
-	// 		inventoryData, reservationID, err := s.InventoryClient.ReserveAndGetSnapshot(ctx, req.Items)
-	// For now, we'll use mock data and assume the reservation was successful.
-	
-	// --- MOCK INVENTORY RESPONSE START ---
-	// Assume this is the data returned from a successful Inventory Service call 
-	// that simultaneously reserved the stock.
-	mockInventorySnapshot := map[string]struct{ Name string; Price float64; Available int }{
-		"prod-101": {"Widget X", 49.99, 5},
-		"prod-102": {"Gadget Y", 199.99, 100},
-	}
-	// reservationID := uuid.Must(uuid.NewV4()) // Mock Reservation ID
-	// --- MOCK INVENTORY RESPONSE END ---
+func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, error) {
 
-	// 2. **Build Order and Items (Snapshot & Calculation)**
+	res, err := s.InventoryClient.ReserveAndGetSnapshot(ctx, storeID, req.Items)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshotMap := make(map[string]client.InventorySnapshot)
+	for _, snapshot := range res.Snapshots {
+		snapshotMap[snapshot.InventoryID] = snapshot
+	}
+
+	orderID := uuid.Must(uuid.NewV4())
 	newOrder := &models.Order{
-		Base:      		models.Base{ID: uuid.Must(uuid.NewV4())},
-		CustomerName: 	&req.CustomerID,
-		Status:    "COMPLETED", // Start in PENDING until stock deduction is confirmed
+		Base:      		models.Base{ID: orderID},
+		StoreID:        storeID,
+		CustomerName: 	req.CustomerName,
+		SoldBy:         req.SoldBy,
+		PaymentMethod:  models.PaymentMethod(req.PaymentMethod),
+		Channel:        models.OrderChannelInStore,
+		Status:    		models.OrderCompleted, 
 		TotalAmount: 0.0,
 		Items:     make([]models.OrderItem, 0, len(req.Items)),
 	}
-	
-	var calculatedTotal float64
 
+	var calculatedTotal float64
 	for _, itemReq := range req.Items {
-		snapshot, exists := mockInventorySnapshot[itemReq.InventoryID]
+		snapshot, exists := snapshotMap[itemReq.InventoryID.String()]
 		
 		if !exists {
-			// In real life, we would rollback the reservation and return an error.
-			return nil, fmt.Errorf("inventory ID %s not found in inventory", itemReq.InventoryID)
-		}
-		
-		if itemReq.Quantity <= 0 || itemReq.Quantity > snapshot.Available {
-			// In real life, we would rollback the reservation and return an error.
-			return nil, fmt.Errorf("invalid quantity or insufficient stock for inventory ID %s. Available: %d, Requested: %d", itemReq.InventoryID, snapshot.Available, itemReq.Quantity)
+			s.MQPublisher.PublishRollback(ctx, res.ReservationID)
+			return nil, fmt.Errorf("inventory snapshot not found for inventory ID: %s", itemReq.InventoryID)
 		}
 
-		subtotal := float64(itemReq.Quantity) * snapshot.Price
+		subtotal := float64(itemReq.Quantity) * snapshot.UnitPrice
 		calculatedTotal += subtotal
 
 		orderItem := models.OrderItem{
 			Base:                  models.Base{ID: uuid.Must(uuid.NewV4())},
 			InventoryID:           itemReq.InventoryID,
+			OrderID:               orderID,
 			ProductName:   		   snapshot.Name,
-			UnitPrice:     		   snapshot.Price,
+			UnitPrice:     		   snapshot.UnitPrice,
 			Quantity:              itemReq.Quantity,
 			Subtotal:              subtotal,
 		}
@@ -88,18 +85,16 @@ func (s *OrderServiceImpl) Create(ctx context.Context, req dtos.CreateOrderReque
 
 	newOrder.TotalAmount = calculatedTotal
 
-	// 3. **Persistence (Repository)**
 	savedOrder, err := s.OrderRepo.CreateOrder(ctx, newOrder)
 	if err != nil {
-		// In a failure scenario here, we MUST publish a RabbitMQ event 
-		// to the Inventory Service to ROLLBACK the reservation!
-		// s.MQPublisher.PublishRollback(reservationID)
+		s.MQPublisher.PublishRollback(ctx, res.ReservationID)
 		return nil, fmt.Errorf("failed to save order: %w", err)
 	}
 
-	// 4. **Asynchronous Stock Confirmation (RabbitMQ)**
-	// Order saved successfully, so we publish an event to confirm the deduction.
-	// s.MQPublisher.PublishConfirmation(savedOrder.ID, reservationID)
+	if err := s.MQPublisher.PublishConfirmation(ctx, res.ReservationID); err != nil {
+		// Retry Logic
+		logger.L().Warn("WARNING: failed to publish confirmation event", zap.Error(err))
+	}
 
 	return savedOrder, nil
 }

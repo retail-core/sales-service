@@ -1,11 +1,31 @@
 package dtos
 
+import (
+	"time"
+
+	"github.com/gofrs/uuid"
+	"github.com/retail-core/sales-service/internal/models"
+)
+
 type CreateOrderRequest struct {
-	CustomerID string `json:"customer_id"`
-	Items []OrderItemRequest `json:"items"`
+	CustomerName  *string            `json:"customer_name,omitempty"`
+	SoldBy        *string            `json:"sold_by,omitempty"`
+	PaymentMethod string             `json:"payment_method" validate:"oneof=CASH TRANSFER"`
+	Items         []OrderItemRequest `json:"items" validate:"required,min=1,dive,required"`
 }
 
 type OrderItemRequest struct {
-	InventoryID string `json:"inventory_id"`
-	Quantity    int    `json:"quantity"`
+	InventoryID uuid.UUID `json:"inventory_id" validate:"required,uuid"`
+	Quantity    int       `json:"quantity" validate:"required,gt=0"`
+}
+
+type OrderResponse struct {
+	ID            uuid.UUID            `json:"id"`
+	CustomerName  *string              `json:"customer_name"`
+	TotalAmount   float64              `json:"total_amount"`
+	Status        models.OrderStatus   `json:"status"`
+	PaymentMethod models.PaymentMethod `json:"payment_method"`
+	SoldBy        *string              `json:"sold_by"`
+	Channel       models.OrderChannel  `json:"channel"`
+	CreatedAt     time.Time            `json:"created_at"`
 }

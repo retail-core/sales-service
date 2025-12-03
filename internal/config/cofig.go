@@ -10,6 +10,7 @@ type Config struct {
 	DB_SOURCE    string
 	Environment  string
 	RABBITMQ_URL string
+	INVENTORY_SERVICE_URL string
 }
 
 func LoadConfig() Config {
@@ -19,6 +20,7 @@ func LoadConfig() Config {
 		DB_SOURCE:    getEnv("DB_SOURCE", ""),
 		Environment:  getEnv("ENVIRONMENT", "development"),
 		RABBITMQ_URL: getEnv("RABBITMQ_URL", ""),
+		INVENTORY_SERVICE_URL: getEnv("INVENTORY_SERVICE_URL", "http://localhost:9000"),
 	}
 }
 

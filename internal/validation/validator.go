@@ -2,9 +2,9 @@ package validation
 
 import (
 	"fmt"
-	"net/http"
-	"github.com/retail-core/sales-service/internal/errors"
 	"github.com/go-playground/validator/v10"
+	"github.com/retail-core/sales-service/internal/errors"
+	"net/http"
 )
 
 var validate = validator.New()
@@ -44,8 +44,14 @@ func buildValidationMessage(e validator.FieldError) string {
 	case "email":
 		return fmt.Sprintf("%s must be a valid email", e.Field())
 	case "min":
+		if e.Kind().String() == "slice" {
+			return fmt.Sprintf("%s must contain at least %s item(s)", e.Field(), e.Param())
+		}
 		return fmt.Sprintf("%s must be at least %s characters", e.Field(), e.Param())
 	case "max":
+		if e.Kind().String() == "slice" {
+			return fmt.Sprintf("%s must contain at most %s item(s)", e.Field(), e.Param())
+		}
 		return fmt.Sprintf("%s must be at most %s characters", e.Field(), e.Param())
 	case "oneof":
 		return fmt.Sprintf("%s must be one of: %s", e.Field(), e.Param())

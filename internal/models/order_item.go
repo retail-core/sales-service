@@ -9,7 +9,7 @@ type OrderItem struct {
 
 	OrderID uuid.UUID `gorm:"index;not null"` 
 
-	InventoryID string `gorm:"type:varchar(100);not null"`
+	InventoryID uuid.UUID `gorm:"type:varchar(100);not null"`
 	
 	ProductName string `gorm:"type:varchar(255);not null"` 
 	
