@@ -25,7 +25,7 @@ func (r *GormOrderRepository) CreateOrder(ctx context.Context, order *models.Ord
 	return order, nil
 }
 
-func (r *GormOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
+func (r *GormOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
 	order := &models.Order{}
 	
 	result := r.DB.WithContext(ctx).Preload("Items").First(order, id)
@@ -37,6 +37,17 @@ func (r *GormOrderRepository) FindByID(ctx context.Context, id uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to find order by ID %s: %w", id, result.Error)
 	}
 	return order, nil
+}
+
+func (r *GormOrderRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error) {
+	var orders []models.Order
+
+	// no need to preload items here, can be added if necessary
+	result := r.DB.WithContext(ctx).Where("store_id = ?", storeID).Find(&orders)
+	if result.Error != nil {
+		return nil, fmt.Errorf("failed to find orders for store ID %s: %w", storeID, result.Error)
+	}
+	return orders, nil
 }
 
 func (r *GormOrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {

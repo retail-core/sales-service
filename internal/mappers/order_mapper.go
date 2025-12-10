@@ -14,7 +14,26 @@ func ToOrderResponse(order *models.Order) dtos.OrderResponse {
 		PaymentMethod: order.PaymentMethod,
 		SoldBy:        order.SoldBy,
 		Channel:       order.Channel,
-		CreatedAt:    order.CreatedAt,
+		CreatedAt:     order.CreatedAt,
 	}
 
+}
+
+func ToOrderDetailsResponse(order *models.Order) dtos.OrderDetailsResponse {
+	items := make([]dtos.OrderItemResponse, len(order.Items))
+	for i, item := range order.Items {
+		items[i] = dtos.OrderItemResponse{
+			InventoryID: item.InventoryID,
+			ProductName: item.ProductName,
+			ImageUrl:    item.ImageUrl,
+			Quantity:    item.Quantity,
+			UnitPrice:   item.UnitPrice,
+			TotalPrice:  item.Subtotal,
+		}
+	}
+
+	return dtos.OrderDetailsResponse{
+		OrderResponse: ToOrderResponse(order),
+		Items:         items,
+	}
 }

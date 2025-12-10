@@ -29,3 +29,17 @@ type OrderResponse struct {
 	Channel       models.OrderChannel  `json:"channel"`
 	CreatedAt     time.Time            `json:"created_at"`
 }
+
+type OrderDetailsResponse struct {
+	OrderResponse
+	Items []OrderItemResponse `json:"items"`
+}
+
+type OrderItemResponse struct {
+	InventoryID uuid.UUID `json:"inventory_id"`
+	ProductName  string    `json:"product_name"`
+	ImageUrl	*string   `json:"image_url"`
+	Quantity    int       `json:"quantity"`
+	UnitPrice   float64   `json:"unit_price"`
+	TotalPrice  float64   `json:"total_price"`
+}

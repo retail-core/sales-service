@@ -50,3 +50,51 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 
 	httpx.WriteJSON(w, http.StatusCreated, mappers.ToOrderResponse(order))
 }
+
+func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
+	storeIDParam := chi.URLParam(r, "store_id")
+	orderIDParam := chi.URLParam(r, "order_id")
+
+	storeID, err := uuid.FromString(storeIDParam)
+	if err != nil {
+		httpx.WriteError(w, errors.BadRequest("store_id must be valid UUID string"))
+		return
+	}
+
+	orderID, err := uuid.FromString(orderIDParam)
+	if err != nil {
+		httpx.WriteError(w, errors.BadRequest("order_id must be valid UUID string"))
+		return
+	}
+
+	order, err := h.Service.GetOrderByID(r.Context(), storeID, orderID)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, mappers.ToOrderDetailsResponse(order))
+}
+
+func (h *OrderHandler) GetOrdersByStoreID(w http.ResponseWriter, r *http.Request) {
+	storeIDParam := chi.URLParam(r, "store_id")
+
+	storeID, err := uuid.FromString(storeIDParam)
+	if err != nil {
+		httpx.WriteError(w, errors.BadRequest("store_id must be valid UUID string"))
+		return
+	}
+
+	orders, err := h.Service.GetOrdersByStoreID(r.Context(), storeID)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+
+	response := make([]dtos.OrderResponse, len(orders))
+
+	for i, order := range orders {
+		response[i] = mappers.ToOrderResponse(&order)
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, response)
+}

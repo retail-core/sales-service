@@ -7,6 +7,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/retail-core/sales-service/internal/client"
 	"github.com/retail-core/sales-service/internal/dtos"
+	"github.com/retail-core/sales-service/internal/errors"
 	"github.com/retail-core/sales-service/internal/logger"
 	"github.com/retail-core/sales-service/internal/models"
 	"github.com/retail-core/sales-service/internal/mq"
@@ -76,6 +77,7 @@ func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dt
 			InventoryID:           itemReq.InventoryID,
 			OrderID:               orderID,
 			ProductName:   		   snapshot.Name,
+			ImageUrl:              &snapshot.ImageUrl,
 			UnitPrice:     		   snapshot.UnitPrice,
 			Quantity:              itemReq.Quantity,
 			Subtotal:              subtotal,
@@ -100,7 +102,7 @@ func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dt
 }
 
 func (s *OrderServiceImpl) GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
-	return s.OrderRepo.FindByID(ctx, id)
+	return s.OrderRepo.GetByID(ctx, id)
 }
 
 func (s *OrderServiceImpl) UpdateStatusByEvent(ctx context.Context, orderID uuid.UUID, newStatus string) error {
@@ -109,4 +111,23 @@ func (s *OrderServiceImpl) UpdateStatusByEvent(ctx context.Context, orderID uuid
 		return s.OrderRepo.UpdateStatus(ctx, orderID, newStatus)
 	}
 	return fmt.Errorf("invalid status provided for update: %s", newStatus)
+}
+
+func (s *OrderServiceImpl) GetOrderByID(ctx context.Context, storeID uuid.UUID, orderID uuid.UUID) (*models.Order, error) {
+	order, err := s.OrderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.StoreID != storeID {
+		return nil, errors.BadRequest("store_id does not match order's store_id")
+	}
+	return order, nil
+}
+
+func (s *OrderServiceImpl) GetOrdersByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error) {
+	orders, err := s.OrderRepo.GetByStoreID(ctx, storeID)
+	if err != nil {
+		return nil, err
+	}
+	return orders, nil
 }

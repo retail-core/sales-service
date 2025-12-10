@@ -11,7 +11,9 @@ type OrderItem struct {
 
 	InventoryID uuid.UUID `gorm:"type:varchar(100);not null"`
 	
-	ProductName string `gorm:"type:varchar(255);not null"` 
+	ProductName string `gorm:"type:varchar(255);not null"`
+
+	ImageUrl *string `gorm:"type:text;"`
 	
 	UnitPrice   float64 `gorm:"type:numeric(10, 2);not null"` 
 	

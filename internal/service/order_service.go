@@ -11,7 +11,8 @@ import (
 type OrderService interface {
 	Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, error)
 
-	GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error)
+	GetOrderByID(ctx context.Context, storeID uuid.UUID, orderID uuid.UUID) (*models.Order, error)
+	GetOrdersByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)
 
 	UpdateStatusByEvent(ctx context.Context, orderID uuid.UUID, newStatus string) error
 }
