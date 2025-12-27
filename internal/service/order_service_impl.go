@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/retail-core/sales-service/internal/client"
@@ -79,6 +80,7 @@ func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dt
 			ProductName:   		   snapshot.Name,
 			ImageUrl:              &snapshot.ImageUrl,
 			UnitPrice:     		   snapshot.UnitPrice,
+			CostPrice:             snapshot.CostPrice,
 			Quantity:              itemReq.Quantity,
 			Subtotal:              subtotal,
 		}
@@ -130,4 +132,13 @@ func (s *OrderServiceImpl) GetOrdersByStoreID(ctx context.Context, storeID uuid.
 		return nil, err
 	}
 	return orders, nil
+}
+
+func (s *OrderServiceImpl) GetSalesReport(ctx context.Context, storeID uuid.UUID, from, to time.Time) (*dtos.SalesReportResponse, error) {
+	report, err := s.OrderRepo.GetSalesReport(ctx, storeID, from, to)
+	if err != nil {
+		return nil, err
+	}
+
+	return report, nil
 }

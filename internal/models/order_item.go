@@ -15,7 +15,9 @@ type OrderItem struct {
 
 	ImageUrl *string `gorm:"type:text;"`
 	
-	UnitPrice   float64 `gorm:"type:numeric(10, 2);not null"` 
+	UnitPrice   float64 `gorm:"type:numeric(10, 2);not null"`
+
+	CostPrice   *float64 `gorm:"type:numeric(10, 2);"`
 	
 	Quantity int `gorm:"not null"` 
 	

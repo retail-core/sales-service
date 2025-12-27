@@ -37,9 +37,28 @@ type OrderDetailsResponse struct {
 
 type OrderItemResponse struct {
 	InventoryID uuid.UUID `json:"inventory_id"`
-	ProductName  string    `json:"product_name"`
-	ImageUrl	*string   `json:"image_url"`
+	ProductName string    `json:"product_name"`
+	ImageUrl    *string   `json:"image_url"`
 	Quantity    int       `json:"quantity"`
 	UnitPrice   float64   `json:"unit_price"`
 	TotalPrice  float64   `json:"total_price"`
+}
+
+type SalesReportResponse struct {
+	StoreID          uuid.UUID         `json:"store_id"`
+	From             time.Time         `json:"from"`
+	To               time.Time         `json:"to"`
+	TotalSales       float64           `json:"total_sales"`
+	TotalOrders      int               `json:"total_orders"`
+	Profit           float64           `json:"profit"`
+	BestSellingItems []BestSellingItem `json:"best_selling_items"`
+	PaymentMethods   map[string]float64 `json:"payment_methods"`
+}
+
+type BestSellingItem struct {
+	InventoryID  uuid.UUID `json:"inventory_id"`
+	ProductName  string    `json:"product_name"`
+	QuantitySold int       `json:"quantity_sold"`
+	TotalRevenue float64   `json:"total_revenue"`
+	Profit       float64   `json:"profit"`
 }

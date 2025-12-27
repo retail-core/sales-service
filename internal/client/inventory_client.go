@@ -11,6 +11,7 @@ type InventorySnapshot struct {
 	InventoryID string  `json:"inventory_id"`
 	Name        string  `json:"name"`
 	UnitPrice   float64 `json:"unit_price"`
+	CostPrice   *float64 `json:"cost_price,omitempty"`
 	Quantity    int32   `json:"quantity,omitempty"`
 	ImageUrl    string  `json:"image_url,omitempty"`
 }

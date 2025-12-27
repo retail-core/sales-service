@@ -37,6 +37,7 @@ func ConfigureRoutes(database *gorm.DB, mqPublisher *mq.RabbitMQConnection, invS
 		v1.Post("/stores/{store_id}/orders", orderHandler.CreateOrder)
 		v1.Get("/stores/{store_id}/orders/{order_id}", orderHandler.GetOrder)
 		v1.Get("/stores/{store_id}/orders", orderHandler.GetOrdersByStoreID)
+		v1.Get("/stores/{store_id}/sales/report", orderHandler.GetSalesReport)
 	})
 
 	return r
