@@ -10,7 +10,7 @@ import (
 )
 
 type OrderService interface {
-	Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, error)
+	Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, int64, error)
 
 	GetOrderByID(ctx context.Context, storeID uuid.UUID, orderID uuid.UUID) (*models.Order, error)
 	GetOrdersByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)

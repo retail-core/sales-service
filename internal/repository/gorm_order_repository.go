@@ -208,3 +208,43 @@ func (r *GormOrderRepository) GetSalesReport(
 
 	return report, nil
 }
+
+func (r *GormOrderRepository) GetTodayOrdersCount(
+	ctx context.Context,
+	storeID uuid.UUID,
+) (int64, error) {
+
+	var count int64
+
+	now := time.Now()
+
+	startOfDay := time.Date(
+		now.Year(),
+		now.Month(),
+		now.Day(),
+		0, 0, 0, 0,
+		time.UTC,
+	)
+
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	err := r.DB.WithContext(ctx).
+		Model(&models.Order{}).
+		Where(
+			"store_id = ? AND created_at >= ? AND created_at < ?",
+			storeID,
+			startOfDay,
+			endOfDay,
+		).
+		Count(&count).Error
+
+	if err != nil {
+		return 0, fmt.Errorf(
+			"failed to count today's orders for store %s: %w",
+			storeID,
+			err,
+		)
+	}
+
+	return count, nil
+}

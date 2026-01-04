@@ -17,4 +17,5 @@ type OrderRepository interface {
 
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) error
 	GetSalesReport(ctx context.Context, storeID uuid.UUID, from, to time.Time) (*dtos.SalesReportResponse, error)
+	GetTodayOrdersCount(ctx context.Context, storeID uuid.UUID) (int64, error)
 }

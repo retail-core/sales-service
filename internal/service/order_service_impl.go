@@ -36,11 +36,11 @@ func NewOrderServiceImpl(repo repository.OrderRepository, inventoryClient client
 	}
 }
 
-func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, error) {
+func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, int64, error) {
 
 	res, err := s.InventoryClient.ReserveAndGetSnapshot(ctx, storeID, req.Items)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	snapshotMap := make(map[string]client.InventorySnapshot)
@@ -67,7 +67,7 @@ func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dt
 		
 		if !exists {
 			s.MQPublisher.PublishRollback(ctx, res.ReservationID)
-			return nil, fmt.Errorf("inventory snapshot not found for inventory ID: %s", itemReq.InventoryID)
+			return nil, 0, fmt.Errorf("inventory snapshot not found for inventory ID: %s", itemReq.InventoryID)
 		}
 
 		subtotal := float64(itemReq.Quantity) * snapshot.UnitPrice
@@ -92,7 +92,7 @@ func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dt
 	savedOrder, err := s.OrderRepo.CreateOrder(ctx, newOrder)
 	if err != nil {
 		s.MQPublisher.PublishRollback(ctx, res.ReservationID)
-		return nil, fmt.Errorf("failed to save order: %w", err)
+		return nil, 0, fmt.Errorf("failed to save order: %w", err)
 	}
 
 	if err := s.MQPublisher.PublishConfirmation(ctx, res.ReservationID); err != nil {
@@ -100,7 +100,12 @@ func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dt
 		logger.L().Warn("WARNING: failed to publish confirmation event", zap.Error(err))
 	}
 
-	return savedOrder, nil
+	todayOrdersCount, err := s.OrderRepo.GetTodayOrdersCount(ctx, storeID)
+	if err != nil {
+		logger.L().Warn("WARNING: failed to get today's orders count", zap.Error(err))
+	}
+
+	return savedOrder, todayOrdersCount, nil
 }
 
 func (s *OrderServiceImpl) GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {

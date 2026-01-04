@@ -43,13 +43,13 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	order, err := h.Service.Create(r.Context(), storeID, req)
+	order, todayOrdersCount, err := h.Service.Create(r.Context(), storeID, req)
 	if err != nil {
 		httpx.WriteError(w, err)
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusCreated, mappers.ToOrderDetailsResponse(order))
+	httpx.WriteJSON(w, http.StatusCreated, mappers.ToOrderDetailsResponse(order, &todayOrdersCount))
 }
 
 func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, mappers.ToOrderDetailsResponse(order))
+	httpx.WriteJSON(w, http.StatusOK, mappers.ToOrderDetailsResponse(order, nil))
 }
 
 func (h *OrderHandler) GetOrdersByStoreID(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +120,7 @@ func (h *OrderHandler) GetSalesReport(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
-	
+
 	httpx.WriteJSON(w, http.StatusOK, report)
 }
 

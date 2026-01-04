@@ -32,6 +32,7 @@ type OrderResponse struct {
 
 type OrderDetailsResponse struct {
 	OrderResponse
+	ReceiptNo	  *string              `json:"receipt_no,omitempty"` 
 	Items []OrderItemResponse `json:"items"`
 }
 

@@ -1,6 +1,8 @@
 package mappers
 
 import (
+	"fmt"
+
 	"github.com/retail-core/sales-service/internal/dtos"
 	"github.com/retail-core/sales-service/internal/models"
 )
@@ -19,8 +21,16 @@ func ToOrderResponse(order *models.Order) dtos.OrderResponse {
 
 }
 
-func ToOrderDetailsResponse(order *models.Order) dtos.OrderDetailsResponse {
+func ToOrderDetailsResponse(order *models.Order, todayOrdersCount *int64) dtos.OrderDetailsResponse {
 	items := make([]dtos.OrderItemResponse, len(order.Items))
+
+	var orderNo int64 = 0
+	if todayOrdersCount != nil {
+		orderNo = *todayOrdersCount + 1
+	}
+
+	receiptNo := fmt.Sprintf("#%06d", orderNo)
+
 	for i, item := range order.Items {
 		items[i] = dtos.OrderItemResponse{
 			InventoryID: item.InventoryID,
@@ -34,6 +44,7 @@ func ToOrderDetailsResponse(order *models.Order) dtos.OrderDetailsResponse {
 
 	return dtos.OrderDetailsResponse{
 		OrderResponse: ToOrderResponse(order),
+		ReceiptNo:     &receiptNo,
 		Items:         items,
 	}
 }
