@@ -29,7 +29,7 @@ func ToOrderDetailsResponse(order *models.Order, todayOrdersCount *int64) dtos.O
 		orderNo = *todayOrdersCount + 1
 	}
 
-	receiptNo := fmt.Sprintf("#%06d", orderNo)
+	receiptNo := fmt.Sprintf("%06d", orderNo)
 
 	for i, item := range order.Items {
 		items[i] = dtos.OrderItemResponse{
