@@ -23,89 +23,168 @@ import (
 
 // OrderServiceImpl is the concrete implementation of OrderService.
 type OrderServiceImpl struct {
-	OrderRepo repository.OrderRepository
+	OrderRepo       repository.OrderRepository
 	InventoryClient client.InventoryClient
-	MQPublisher mq.MessageQueuePublisher
+	MQPublisher     mq.MessageQueuePublisher
 }
 
 func NewOrderServiceImpl(repo repository.OrderRepository, inventoryClient client.InventoryClient, mqPublisher mq.MessageQueuePublisher) *OrderServiceImpl {
 	return &OrderServiceImpl{
-		OrderRepo: repo,
+		OrderRepo:       repo,
 		InventoryClient: inventoryClient,
-		MQPublisher: mqPublisher,
+		MQPublisher:     mqPublisher,
 	}
 }
 
-func (s *OrderServiceImpl) Create(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*models.Order, int64, error) {
+func (s *OrderServiceImpl) Create(
+	ctx context.Context,
+	storeID uuid.UUID,
+	req dtos.CreateOrderRequest,
+) (*models.Order, int64, error) {
 
-	res, err := s.InventoryClient.ReserveAndGetSnapshot(ctx, storeID, req.Items)
+	res, err := s.InventoryClient.ReserveAndGetSnapshot(ctx, storeID, req)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	snapshotMap := make(map[string]client.InventorySnapshot)
-	for _, snapshot := range res.Snapshots {
-		snapshotMap[snapshot.InventoryID] = snapshot
+	rollback := func(err error) (*models.Order, int64, error) {
+		s.MQPublisher.PublishRollback(ctx, res.ReservationID)
+		return nil, 0, err
+	}
+
+	// =========================
+	// Build lookup maps
+	// =========================
+	inventoryMap := make(map[string]client.InventorySnapshot)
+	for _, s := range res.InventorySnapshots {
+		inventoryMap[s.InventoryID] = s
+	}
+
+	comboMap := make(map[string]client.ComboSnapshot)
+	for _, c := range res.ComboSnapshots {
+		comboMap[c.ComboID] = c
 	}
 
 	orderID := uuid.Must(uuid.NewV4())
-	newOrder := &models.Order{
-		Base:      		models.Base{ID: orderID},
-		StoreID:        storeID,
-		CustomerName: 	req.CustomerName,
-		SoldBy:         req.SoldBy,
-		PaymentMethod:  models.PaymentMethod(req.PaymentMethod),
-		Channel:        models.OrderChannelInStore,
-		Status:    		models.OrderCompleted, 
-		TotalAmount: 0.0,
-		Items:     make([]models.OrderItem, 0, len(req.Items)),
+
+	order := &models.Order{
+		Base:          models.Base{ID: orderID},
+		StoreID:       storeID,
+		CustomerName:  req.CustomerName,
+		SoldBy:        req.SoldBy,
+		PaymentMethod: models.PaymentMethod(req.PaymentMethod),
+		Channel:       models.OrderChannelInStore,
+		Status:        models.OrderCompleted,
+		Items:         make([]models.OrderItem, 0),
 	}
 
-	var calculatedTotal float64
-	for _, itemReq := range req.Items {
-		snapshot, exists := snapshotMap[itemReq.InventoryID.String()]
-		
-		if !exists {
-			s.MQPublisher.PublishRollback(ctx, res.ReservationID)
-			return nil, 0, fmt.Errorf("inventory snapshot not found for inventory ID: %s", itemReq.InventoryID)
+	var totalAmount float64
+	var totalCost float64
+
+	// =========================
+	// INVENTORY ITEMS
+	// =========================
+	for _, reqItem := range req.InventoryItems {
+
+		snap, ok := inventoryMap[reqItem.InventoryID.String()]
+		if !ok {
+			return rollback(fmt.Errorf("inventory snapshot not found: %s", reqItem.InventoryID))
 		}
 
-		subtotal := float64(itemReq.Quantity) * snapshot.UnitPrice
-		calculatedTotal += subtotal
-
-		orderItem := models.OrderItem{
-			Base:                  models.Base{ID: uuid.Must(uuid.NewV4())},
-			InventoryID:           itemReq.InventoryID,
-			OrderID:               orderID,
-			ProductName:   		   snapshot.Name,
-			ImageUrl:              &snapshot.ImageUrl,
-			UnitPrice:     		   snapshot.UnitPrice,
-			CostPrice:             snapshot.CostPrice,
-			Quantity:              itemReq.Quantity,
-			Subtotal:              subtotal,
+		cost := 0.0
+		if snap.CostPrice != nil {
+			cost = *snap.CostPrice
 		}
-		newOrder.Items = append(newOrder.Items, orderItem)
+
+		subtotal := float64(reqItem.Quantity) * snap.UnitPrice
+		subtotalCost := float64(reqItem.Quantity) * cost
+
+		totalAmount += subtotal
+		totalCost += subtotalCost
+
+		order.Items = append(order.Items, models.OrderItem{
+			Base:        models.Base{ID: uuid.Must(uuid.NewV4())},
+			InventoryID: reqItem.InventoryID,
+			OrderID:     orderID,
+			ProductName: snap.Name,
+			ImageUrl:    &snap.ImageUrl,
+			UnitPrice:   snap.UnitPrice,
+			CostPrice:   &cost,
+			Quantity:    reqItem.Quantity,
+			Subtotal:    subtotal,
+		})
 	}
 
-	newOrder.TotalAmount = calculatedTotal
+	// =========================
+	// COMBO ITEMS
+	// =========================
+	for _, comboReq := range req.ComboItems {
 
-	savedOrder, err := s.OrderRepo.CreateOrder(ctx, newOrder)
+		snap, ok := comboMap[comboReq.ComboID.String()]
+		if !ok {
+			return rollback(fmt.Errorf("combo snapshot not found: %s", comboReq.ComboID))
+		}
+
+		comboID, _ := uuid.FromString(snap.ComboID)
+
+		for _, item := range snap.Items {
+
+			inventoryID, err := uuid.FromString(item.InventoryID)
+			if err != nil {
+				return rollback(errors.BadRequest("invalid inventory_id"))
+			}
+
+			cost := 0.0
+			if item.CostPrice != nil {
+				cost = *item.CostPrice
+			}
+
+			qty := comboReq.Quantity * int(item.Quantity)
+
+			subtotal := float64(qty) * item.UnitPrice
+			subtotalCost := float64(qty) * cost
+
+			totalAmount += subtotal
+			totalCost += subtotalCost
+
+			order.Items = append(order.Items, models.OrderItem{
+				Base:         models.Base{ID: uuid.Must(uuid.NewV4())},
+				InventoryID:  inventoryID,
+				OrderID:      orderID,
+				ProductName:  item.Name,
+				ImageUrl:     &item.ImageUrl,
+				UnitPrice:    item.UnitPrice,
+				CostPrice:    &cost,
+				Quantity:     qty,
+				Subtotal:     subtotal,
+				SubtotalCost: subtotalCost,
+				ComboID:      &comboID,
+				ComboName:    &snap.Name,
+			})
+		}
+	}
+
+	order.TotalAmount = totalAmount
+	order.TotalCost = totalCost
+
+	// =========================
+	// SAVE
+	// =========================
+	saved, err := s.OrderRepo.CreateOrder(ctx, order)
 	if err != nil {
-		s.MQPublisher.PublishRollback(ctx, res.ReservationID)
-		return nil, 0, fmt.Errorf("failed to save order: %w", err)
+		return rollback(fmt.Errorf("failed to save order: %w", err))
 	}
 
 	if err := s.MQPublisher.PublishConfirmation(ctx, res.ReservationID); err != nil {
-		// Retry Logic
-		logger.L().Warn("WARNING: failed to publish confirmation event", zap.Error(err))
+		logger.L().Warn("failed to publish confirmation", zap.Error(err))
 	}
 
-	todayOrdersCount, err := s.OrderRepo.GetTodayOrdersCount(ctx, storeID)
+	count, err := s.OrderRepo.GetTodayOrdersCount(ctx, storeID)
 	if err != nil {
-		logger.L().Warn("WARNING: failed to get today's orders count", zap.Error(err))
+		logger.L().Warn("failed to get today's orders count", zap.Error(err))
 	}
 
-	return savedOrder, todayOrdersCount, nil
+	return saved, count, nil
 }
 
 func (s *OrderServiceImpl) GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {

@@ -30,6 +30,8 @@ type Order struct {
 	CustomerName *string `gorm:"type:varchar(255);default:null"`
 
 	TotalAmount float64 `gorm:"type:numeric(10, 2);not null"`
+	
+	TotalCost float64 `gorm:"type:numeric(10,2);not null;default:0"`
 
 	Status OrderStatus `gorm:"type:varchar(25);default:'PENDING'"`
 

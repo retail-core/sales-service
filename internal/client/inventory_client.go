@@ -16,15 +16,24 @@ type InventorySnapshot struct {
 	ImageUrl    string  `json:"image_url,omitempty"`
 }
 
+type ComboSnapshot struct {
+	ComboID   string  `json:"combo_id"`
+	Name      string  `json:"name"`
+	UnitPrice float64 `json:"unit_price"`
+	Items    []InventorySnapshot `json:"items"`
+}
+
 type ReservationResponse struct {
 	ReservationID uuid.UUID `json:"reservation_id"`
-	Snapshots     []InventorySnapshot `json:"snapshots"`
+	InventorySnapshots     []InventorySnapshot `json:"inventory_snapshots,omitempty"`
+	ComboSnapshots         []ComboSnapshot `json:"combo_snapshots,omitempty"`
 }
 
 type ReservationRequest struct {
-	Items []dtos.OrderItemRequest `json:"items" validate:"required,dive,required"`
+	InventoryItems []dtos.InventoryOrderItemRequest `json:"inventory_items" validate:"required,dive,required"`
+	ComboItems     []dtos.ComboOrderItemRequest     `json:"combo_items,omitempty" validate:"dive,required"`
 }
 
 type InventoryClient interface {
-	ReserveAndGetSnapshot(ctx context.Context, storeID uuid.UUID, items []dtos.OrderItemRequest) (*ReservationResponse, error)
+	ReserveAndGetSnapshot(ctx context.Context, storeID uuid.UUID, req dtos.CreateOrderRequest) (*ReservationResponse, error)
 }

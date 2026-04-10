@@ -27,9 +27,14 @@ func NewHttpInventoryClient(serviceURL string) *HttpInventoryClient {
 	}
 }
 
-func (c *HttpInventoryClient) ReserveAndGetSnapshot(ctx context.Context, storeID uuid.UUID, items []dtos.OrderItemRequest) (*ReservationResponse, error) {
+func (c *HttpInventoryClient) ReserveAndGetSnapshot(ctx context.Context, storeID uuid.UUID, cReq dtos.CreateOrderRequest) (*ReservationResponse, error) {
 
-	body, err := json.Marshal(ReservationRequest{Items: items})
+	reqBody := ReservationRequest{
+		InventoryItems: cReq.InventoryItems,
+		ComboItems:     cReq.ComboItems,
+	}
+
+	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal reservation request: %w", err)
 	}
@@ -47,6 +52,7 @@ func (c *HttpInventoryClient) ReserveAndGetSnapshot(ctx context.Context, storeID
 	if err != nil {
 		return nil, errors.ServiceUnavailable("Inventory Service connection failed")
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
@@ -64,7 +70,8 @@ func (c *HttpInventoryClient) ReserveAndGetSnapshot(ctx context.Context, storeID
 	}
 
 	return &ReservationResponse{
-		ReservationID: response.ReservationID,
-		Snapshots:     response.Snapshots,
+		ReservationID:      response.ReservationID,
+		InventorySnapshots: response.InventorySnapshots,
+		ComboSnapshots:     response.ComboSnapshots,
 	}, nil
 }

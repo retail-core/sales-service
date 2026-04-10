@@ -12,6 +12,7 @@ func ToOrderResponse(order *models.Order) dtos.OrderResponse {
 		ID:            order.ID,
 		CustomerName:  order.CustomerName,
 		TotalAmount:   order.TotalAmount,
+		TotalCost:     &order.TotalCost,
 		Status:        order.Status,
 		PaymentMethod: order.PaymentMethod,
 		SoldBy:        order.SoldBy,
@@ -33,12 +34,16 @@ func ToOrderDetailsResponse(order *models.Order, todayOrdersCount *int64) dtos.O
 
 	for i, item := range order.Items {
 		items[i] = dtos.OrderItemResponse{
-			InventoryID: item.InventoryID,
-			ProductName: item.ProductName,
-			ImageUrl:    item.ImageUrl,
-			Quantity:    item.Quantity,
-			UnitPrice:   item.UnitPrice,
-			TotalPrice:  item.Subtotal,
+			InventoryID:   item.InventoryID,
+			ProductName:   item.ProductName,
+			ImageUrl:      item.ImageUrl,
+			Quantity:      item.Quantity,
+			UnitPrice:     item.UnitPrice,
+			TotalPrice:    item.Subtotal,
+			UnitCostPrice: item.CostPrice,
+			TotalCost:     &item.SubtotalCost,
+			ComboID:       item.ComboID,
+			ComboName:     item.ComboName,
 		}
 	}
 
