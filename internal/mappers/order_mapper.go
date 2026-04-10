@@ -1,10 +1,12 @@
 package mappers
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/retail-core/sales-service/internal/dtos"
 	"github.com/retail-core/sales-service/internal/models"
+	"github.com/retail-core/sales-service/internal/redis_client"
 )
 
 func ToOrderResponse(order *models.Order) dtos.OrderResponse {
@@ -22,7 +24,7 @@ func ToOrderResponse(order *models.Order) dtos.OrderResponse {
 
 }
 
-func ToOrderDetailsResponse(order *models.Order, todayOrdersCount *int64) dtos.OrderDetailsResponse {
+func ToOrderDetailsResponse(order *models.Order, queueStore redis_client.QueueStore, todayOrdersCount *int64) dtos.OrderDetailsResponse {
 	items := make([]dtos.OrderItemResponse, len(order.Items))
 
 	var orderNo int64 = 0
@@ -32,7 +34,15 @@ func ToOrderDetailsResponse(order *models.Order, todayOrdersCount *int64) dtos.O
 
 	receiptNo := fmt.Sprintf("%06d", orderNo)
 
+
 	for i, item := range order.Items {
+
+		ctx := context.Background()
+		queueNumber, err := queueStore.GetNextQueueNumber(ctx, item.InventoryID.String())
+		if err != nil {
+			queueNumber = 0 
+		}
+
 		items[i] = dtos.OrderItemResponse{
 			InventoryID:   item.InventoryID,
 			ProductName:   item.ProductName,
@@ -44,6 +54,7 @@ func ToOrderDetailsResponse(order *models.Order, todayOrdersCount *int64) dtos.O
 			TotalCost:     &item.SubtotalCost,
 			ComboID:       item.ComboID,
 			ComboName:     item.ComboName,
+			QueueNumber:   queueNumber,
 		}
 	}
 

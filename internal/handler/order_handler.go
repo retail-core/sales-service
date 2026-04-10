@@ -49,7 +49,9 @@ func (h *OrderHandler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusCreated, mappers.ToOrderDetailsResponse(order, &todayOrdersCount))
+	queueStoreClient := h.Service.GetQueueStoreClient()
+
+	httpx.WriteJSON(w, http.StatusCreated, mappers.ToOrderDetailsResponse(order, queueStoreClient, &todayOrdersCount))
 }
 
 func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +75,7 @@ func (h *OrderHandler) GetOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, mappers.ToOrderDetailsResponse(order, nil))
+	httpx.WriteJSON(w, http.StatusOK, mappers.ToOrderDetailsResponse(order, h.Service.GetQueueStoreClient(), nil))
 }
 
 func (h *OrderHandler) GetOrdersByStoreID(w http.ResponseWriter, r *http.Request) {

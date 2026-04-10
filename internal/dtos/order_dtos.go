@@ -54,6 +54,7 @@ type OrderItemResponse struct {
 	TotalCost     *float64   `json:"total_cost,omitempty"`
 	ComboID       *uuid.UUID `json:"combo_id,omitempty"`
 	ComboName     *string    `json:"combo_name,omitempty"`
+	QueueNumber   int64     `json:"queue_number,omitempty"`
 }
 
 type SalesReportResponse struct {

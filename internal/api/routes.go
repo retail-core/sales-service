@@ -5,21 +5,25 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/redis/go-redis/v9"
 	"github.com/retail-core/sales-service/internal/client"
 	"github.com/retail-core/sales-service/internal/handler"
 	"github.com/retail-core/sales-service/internal/mq"
+	"github.com/retail-core/sales-service/internal/redis_client"
 	"github.com/retail-core/sales-service/internal/repository"
 	"github.com/retail-core/sales-service/internal/service"
 	"gorm.io/gorm"
 )
 
-func ConfigureRoutes(database *gorm.DB, mqPublisher *mq.RabbitMQConnection, invServiceUrl string) http.Handler {
+func ConfigureRoutes(database *gorm.DB, redisClient *redis.Client, mqPublisher *mq.RabbitMQConnection, invServiceUrl string) http.Handler {
 
 	orderRepo := repository.NewGormOrderRepository(database)
 
 	inventoryClient := client.NewHttpInventoryClient(invServiceUrl)
 
-	orderService := service.NewOrderServiceImpl(orderRepo, inventoryClient, mqPublisher)
+	queueStore := redis_client.NewRedisQueueStore(redisClient)
+
+	orderService := service.NewOrderServiceImpl(orderRepo, inventoryClient, mqPublisher, queueStore)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	

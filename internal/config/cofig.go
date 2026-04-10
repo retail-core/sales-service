@@ -10,6 +10,7 @@ type Config struct {
 	DB_SOURCE    string
 	Environment  string
 	RABBITMQ_URL string
+	REDIS_ADDR   string
 	INVENTORY_SERVICE_URL string
 }
 
@@ -20,6 +21,7 @@ func LoadConfig() Config {
 		DB_SOURCE:    getEnv("DB_SOURCE", ""),
 		Environment:  getEnv("ENVIRONMENT", "development"),
 		RABBITMQ_URL: getEnv("RABBITMQ_URL", ""),
+		REDIS_ADDR:   getEnv("REDIS_ADDR", "redis:6379"),
 		INVENTORY_SERVICE_URL: getEnv("INVENTORY_SERVICE_URL", "http://localhost:9000"),
 	}
 }

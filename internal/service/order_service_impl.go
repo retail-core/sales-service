@@ -12,6 +12,7 @@ import (
 	"github.com/retail-core/sales-service/internal/logger"
 	"github.com/retail-core/sales-service/internal/models"
 	"github.com/retail-core/sales-service/internal/mq"
+	"github.com/retail-core/sales-service/internal/redis_client"
 	"github.com/retail-core/sales-service/internal/repository"
 	"go.uber.org/zap"
 	// TODO: Inventory service client import will go here (e.g., github.com/your-username/inventory-client)
@@ -26,13 +27,15 @@ type OrderServiceImpl struct {
 	OrderRepo       repository.OrderRepository
 	InventoryClient client.InventoryClient
 	MQPublisher     mq.MessageQueuePublisher
+	RedisQueueStore redis_client.QueueStore
 }
 
-func NewOrderServiceImpl(repo repository.OrderRepository, inventoryClient client.InventoryClient, mqPublisher mq.MessageQueuePublisher) *OrderServiceImpl {
+func NewOrderServiceImpl(repo repository.OrderRepository, inventoryClient client.InventoryClient, mqPublisher mq.MessageQueuePublisher, redisQueueStore redis_client.QueueStore) *OrderServiceImpl {
 	return &OrderServiceImpl{
 		OrderRepo:       repo,
 		InventoryClient: inventoryClient,
 		MQPublisher:     mqPublisher,
+		RedisQueueStore: redisQueueStore,
 	}
 }
 
@@ -225,4 +228,8 @@ func (s *OrderServiceImpl) GetSalesReport(ctx context.Context, storeID uuid.UUID
 	}
 
 	return report, nil
+}
+
+func (s *OrderServiceImpl) GetQueueStoreClient() redis_client.QueueStore {
+	return s.RedisQueueStore
 }

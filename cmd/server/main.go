@@ -8,6 +8,7 @@ import (
 	"github.com/retail-core/sales-service/internal/db"
 	"github.com/retail-core/sales-service/internal/logger"
 	"github.com/retail-core/sales-service/internal/mq"
+	"github.com/retail-core/sales-service/internal/redis_client"
 	"go.uber.org/zap"
 )
 
@@ -24,6 +25,11 @@ func main() {
 		_logger.Fatal("Database initialization failed", zap.Error(err))
 	}
 
+	rdb, err := redis_client.InitRedisClient(config.REDIS_ADDR)
+	if err != nil {
+		_logger.Fatal("Redis initialization failed", zap.Error(err))
+	}
+
 	publisher, err := mq.InitRabbitMQ(config.RABBITMQ_URL)
 	if err != nil {
 		_logger.Fatal("Failed to initialize RabbitMQ connection", zap.Error(err))
@@ -36,7 +42,7 @@ func main() {
 
 	defer publisher.Close()
 
-	r := api.ConfigureRoutes(database, publisher, config.INVENTORY_SERVICE_URL)
+	r := api.ConfigureRoutes(database, rdb, publisher, config.INVENTORY_SERVICE_URL)
 
 	go func() {
 		err = http.ListenAndServe(":"+config.Port, r)
