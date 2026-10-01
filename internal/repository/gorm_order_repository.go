@@ -8,6 +8,8 @@ import (
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
 
+	_ "time/tzdata"
+
 	"github.com/retail-core/sales-service/internal/dtos"
 	"github.com/retail-core/sales-service/internal/models"
 )
@@ -41,14 +43,28 @@ func (r *GormOrderRepository) GetByID(ctx context.Context, id uuid.UUID) (*model
 	return order, nil
 }
 
-func (r *GormOrderRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error) {
+func (r *GormOrderRepository) GetByStoreID(ctx context.Context, storeID uuid.UUID, from time.Time, to time.Time,
+) ([]models.Order, error) {
 	var orders []models.Order
 
-	// no need to preload items here, can be added if necessary, // also sort by created_at desc so that latest orders come first
-	result := r.DB.WithContext(ctx).Where("store_id = ?", storeID).Order("created_at desc").Find(&orders)
+	result := r.DB.WithContext(ctx).
+		Where(
+			"store_id = ? AND created_at >= ? AND created_at < ?",
+			storeID,
+			from,
+			to,
+		).
+		Order("created_at DESC").
+		Find(&orders)
+
 	if result.Error != nil {
-		return nil, fmt.Errorf("failed to find orders for store ID %s: %w", storeID, result.Error)
+		return nil, fmt.Errorf(
+			"failed to find orders for store ID %s: %w",
+			storeID,
+			result.Error,
+		)
 	}
+
 	return orders, nil
 }
 
@@ -247,4 +263,190 @@ func (r *GormOrderRepository) GetTodayOrdersCount(
 	}
 
 	return count, nil
+}
+
+func (r *GormOrderRepository) GetTodayOrders(
+	ctx context.Context,
+	storeID uuid.UUID,
+) ([]models.Order, error) {
+	var orders []models.Order
+
+	loc, err := time.LoadLocation("Africa/Lagos")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load store timezone: %w", err)
+	}
+
+	now := time.Now().In(loc)
+
+	startOfDay := time.Date(
+		now.Year(), now.Month(), now.Day(),
+		0, 0, 0, 0,
+		loc,
+	)
+
+	startOfTomorrow := startOfDay.AddDate(0, 0, 1)
+
+	err = r.DB.WithContext(ctx).
+		Where(`
+			store_id = ?
+			AND status = ?
+			AND created_at >= ?
+			AND created_at < ?
+		`,
+			storeID,
+			models.OrderCompleted,
+			startOfDay,
+			startOfTomorrow,
+		).
+		Order("created_at DESC").
+		Find(&orders).Error
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to find today's orders for store %s: %w",
+			storeID,
+			err,
+		)
+	}
+
+	return orders, nil
+}
+
+func (r *GormOrderRepository) GetOrderSummariesByStoreID(
+	ctx context.Context,
+	storeID uuid.UUID,
+) ([]dtos.OrderSummary, error) {
+
+	loc, _err := time.LoadLocation("Africa/Lagos")
+	if _err != nil {
+		return nil, fmt.Errorf("failed to load store timezone: %w", _err)
+	}
+
+	type summaryRow struct {
+		Month           int64   `gorm:"column:month"`
+		Year            int64   `gorm:"column:year"`
+		TotalOrderCount int64   `gorm:"column:total_order_count"`
+		TotalRevenue    float64 `gorm:"column:total_revenue"`
+		TotalProfit     float64 `gorm:"column:total_profit"`
+	}
+
+	var monthlyRows []summaryRow
+
+	err := r.DB.WithContext(ctx).
+		Model(&models.Order{}).
+		Select(`
+			EXTRACT(MONTH FROM created_at AT TIME ZONE 'Africa/Lagos')::int AS month,
+			EXTRACT(YEAR FROM created_at AT TIME ZONE 'Africa/Lagos')::int AS year,
+			COUNT(id) AS total_order_count,
+			COALESCE(SUM(total_amount), 0) AS total_revenue,
+			COALESCE(SUM(total_amount - total_cost), 0) AS total_profit
+		`).
+		Where(`
+			store_id = ?
+			AND status = ?
+		`, storeID, models.OrderCompleted).
+		Group(`
+			EXTRACT(YEAR FROM created_at AT TIME ZONE 'Africa/Lagos'),
+			EXTRACT(MONTH FROM created_at AT TIME ZONE 'Africa/Lagos')
+		`).
+		Order("year DESC, month DESC").
+		Scan(&monthlyRows).Error
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get monthly order summaries for store %s: %w",
+			storeID,
+			err,
+		)
+	}
+
+	summaries := make([]dtos.OrderSummary, 0, len(monthlyRows)+1)
+
+	for _, row := range monthlyRows {
+
+		from := time.Date(
+			int(row.Year),
+			time.Month(row.Month),
+			1,
+			0, 0, 0, 0,
+			loc,
+		)
+
+		to := from.AddDate(0, 1, 0)
+
+		summaries = append(summaries, dtos.OrderSummary{
+			Type:            dtos.OrderSummaryMonth,
+			Month:           int(row.Month),
+			Year:            int(row.Year),
+			From:            from,
+			To:              to,
+			TotalOrderCount: row.TotalOrderCount,
+			TotalRevenue:    row.TotalRevenue,
+			TotalProfit:     row.TotalProfit,
+		})
+	}
+
+	now := time.Now().In(loc)
+
+	today := time.Date(
+		now.Year(), now.Month(), now.Day(),
+		0, 0, 0, 0,
+		loc,
+	)
+
+	startOfYesterday := today.AddDate(0, 0, -1)
+
+	type yesterdayRow struct {
+		TotalOrderCount int64   `gorm:"column:total_order_count"`
+		TotalRevenue    float64 `gorm:"column:total_revenue"`
+		TotalProfit     float64 `gorm:"column:total_profit"`
+	}
+
+	var yesterday yesterdayRow
+
+	err = r.DB.WithContext(ctx).
+		Model(&models.Order{}).
+		Select(`
+			COUNT(id) AS total_order_count,
+			COALESCE(SUM(total_amount), 0) AS total_revenue,
+			COALESCE(SUM(total_amount - total_cost), 0) AS total_profit
+		`).
+		Where(`
+			store_id = ?
+			AND status = ?
+			AND created_at >= ?
+			AND created_at < ?
+		`,
+			storeID,
+			models.OrderCompleted,
+			startOfYesterday,
+			today,
+		).
+		Scan(&yesterday).Error
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get yesterday's order summary for store %s: %w",
+			storeID,
+			err,
+		)
+	}
+
+	summaries = append(
+		[]dtos.OrderSummary{
+			{
+				Type:            dtos.OrderSummaryYesterday,
+				Month:           int(startOfYesterday.Month()),
+				Year:            startOfYesterday.Year(),
+				From:            startOfYesterday,
+				To:              today,
+				TotalOrderCount: yesterday.TotalOrderCount,
+				TotalRevenue:    yesterday.TotalRevenue,
+				TotalProfit:     yesterday.TotalProfit,
+			},
+		},
+		summaries...,
+	)
+
+	return summaries, nil
 }

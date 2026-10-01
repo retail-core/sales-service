@@ -56,6 +56,113 @@ func (s *OrderServiceImpl) Create(
 	}
 
 	// =========================
+	// Build lookup map
+	// =========================
+	inventoryMap := make(map[string]client.InventorySnapshot)
+	for _, s := range res.InventorySnapshots {
+		key := s.InventoryID + "|" + s.UnitID
+		inventoryMap[key] = s
+	}
+
+	orderID := uuid.Must(uuid.NewV4())
+
+	order := &models.Order{
+		Base:          models.Base{ID: orderID},
+		StoreID:       storeID,
+		CustomerName:  req.CustomerName,
+		SoldBy:        req.SoldBy,
+		PaymentMethod: models.PaymentMethod(req.PaymentMethod),
+		Channel:       models.OrderChannelInStore,
+		Status:        models.OrderCompleted,
+		Items:         make([]models.OrderItem, 0),
+	}
+
+	var totalAmount float64
+	var totalCost float64
+
+	// =========================
+	// INVENTORY ITEMS
+	// =========================
+	for _, reqItem := range req.InventoryItems {
+
+		key := reqItem.InventoryID.String() + "|" + reqItem.UnitID.String()
+
+		snap, ok := inventoryMap[key]
+		if !ok {
+			return rollback(fmt.Errorf("inventory snapshot not found: %s", reqItem.InventoryID))
+		}
+
+		cost := 0.0
+		if snap.CostPrice != nil {
+			cost = *snap.CostPrice
+		}
+
+		subtotal := float64(reqItem.Quantity) * snap.UnitPrice
+		subtotalCost := float64(reqItem.Quantity) * float64(snap.QtyPerUnit) * cost
+
+		totalAmount += subtotal
+		totalCost += subtotalCost
+
+		isBaseUnit := snap.IsBaseUnit
+
+		order.Items = append(order.Items, models.OrderItem{
+			Base:         models.Base{ID: uuid.Must(uuid.NewV4())},
+			InventoryID:  reqItem.InventoryID,
+			OrderID:      orderID,
+			ProductName:  snap.Name,
+			ImageUrl:     &snap.ImageUrl,
+			UnitPrice:    snap.UnitPrice,
+			CostPrice:    &cost,
+			Quantity:     reqItem.Quantity,
+			Subtotal:     subtotal,
+			SubtotalCost: subtotalCost,
+
+			UnitLabel:  snap.UnitLabel,
+			QtyPerUnit: snap.QtyPerUnit,
+			IsBaseUnit: &isBaseUnit,
+		})
+	}
+
+	order.TotalAmount = totalAmount
+	order.TotalCost = totalCost
+
+	// =========================
+	// SAVE
+	// =========================
+	saved, err := s.OrderRepo.CreateOrder(ctx, order)
+	if err != nil {
+		return rollback(fmt.Errorf("failed to save order: %w", err))
+	}
+
+	if err := s.MQPublisher.PublishConfirmation(ctx, res.ReservationID); err != nil {
+		logger.L().Warn("failed to publish confirmation", zap.Error(err))
+	}
+
+	count, err := s.OrderRepo.GetTodayOrdersCount(ctx, storeID)
+	if err != nil {
+		logger.L().Warn("failed to get today's orders count", zap.Error(err))
+	}
+
+	return saved, count, nil
+}
+
+func (s *OrderServiceImpl) Create002(
+	ctx context.Context,
+	storeID uuid.UUID,
+	req dtos.CreateOrderRequest,
+) (*models.Order, int64, error) {
+
+	res, err := s.InventoryClient.ReserveAndGetSnapshot(ctx, storeID, req)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rollback := func(err error) (*models.Order, int64, error) {
+		s.MQPublisher.PublishRollback(ctx, res.ReservationID)
+		return nil, 0, err
+	}
+
+	// =========================
 	// Build lookup maps
 	// =========================
 	inventoryMap := make(map[string]client.InventorySnapshot)
@@ -63,10 +170,10 @@ func (s *OrderServiceImpl) Create(
 		inventoryMap[s.InventoryID] = s
 	}
 
-	comboMap := make(map[string]client.ComboSnapshot)
-	for _, c := range res.ComboSnapshots {
-		comboMap[c.ComboID] = c
-	}
+	// comboMap := make(map[string]client.ComboSnapshot)
+	// for _, c := range [1, 3] {
+	// 	comboMap[c.ComboID] = c
+	// }
 
 	orderID := uuid.Must(uuid.NewV4())
 
@@ -121,51 +228,51 @@ func (s *OrderServiceImpl) Create(
 	// =========================
 	// COMBO ITEMS
 	// =========================
-	for _, comboReq := range req.ComboItems {
+	// for _, comboReq := range [] {
 
-		snap, ok := comboMap[comboReq.ComboID.String()]
-		if !ok {
-			return rollback(fmt.Errorf("combo snapshot not found: %s", comboReq.ComboID))
-		}
+	// 	snap, ok := comboMap[comboReq.ComboID.String()]
+	// 	if !ok {
+	// 		return rollback(fmt.Errorf("combo snapshot not found: %s", comboReq.ComboID))
+	// 	}
 
-		comboID, _ := uuid.FromString(snap.ComboID)
+	// 	comboID, _ := uuid.FromString(snap.ComboID)
 
-		for _, item := range snap.Items {
+	// 	for _, item := range snap.Items {
 
-			inventoryID, err := uuid.FromString(item.InventoryID)
-			if err != nil {
-				return rollback(errors.BadRequest("invalid inventory_id"))
-			}
+	// 		inventoryID, err := uuid.FromString(item.InventoryID)
+	// 		if err != nil {
+	// 			return rollback(errors.BadRequest("invalid inventory_id"))
+	// 		}
 
-			cost := 0.0
-			if item.CostPrice != nil {
-				cost = *item.CostPrice
-			}
+	// 		cost := 0.0
+	// 		if item.CostPrice != nil {
+	// 			cost = *item.CostPrice
+	// 		}
 
-			qty := comboReq.Quantity * int(item.Quantity)
+	// 		qty := comboReq.Quantity * int(item.Quantity)
 
-			subtotal := float64(qty) * item.UnitPrice
-			subtotalCost := float64(qty) * cost
+	// 		subtotal := float64(qty) * item.UnitPrice
+	// 		subtotalCost := float64(qty) * cost
 
-			totalAmount += subtotal
-			totalCost += subtotalCost
+	// 		totalAmount += subtotal
+	// 		totalCost += subtotalCost
 
-			order.Items = append(order.Items, models.OrderItem{
-				Base:         models.Base{ID: uuid.Must(uuid.NewV4())},
-				InventoryID:  inventoryID,
-				OrderID:      orderID,
-				ProductName:  item.Name,
-				ImageUrl:     &item.ImageUrl,
-				UnitPrice:    item.UnitPrice,
-				CostPrice:    &cost,
-				Quantity:     qty,
-				Subtotal:     subtotal,
-				SubtotalCost: subtotalCost,
-				ComboID:      &comboID,
-				ComboName:    &snap.Name,
-			})
-		}
-	}
+	// 		order.Items = append(order.Items, models.OrderItem{
+	// 			Base:         models.Base{ID: uuid.Must(uuid.NewV4())},
+	// 			InventoryID:  inventoryID,
+	// 			OrderID:      orderID,
+	// 			ProductName:  item.Name,
+	// 			ImageUrl:     &item.ImageUrl,
+	// 			UnitPrice:    item.UnitPrice,
+	// 			CostPrice:    &cost,
+	// 			Quantity:     qty,
+	// 			Subtotal:     subtotal,
+	// 			SubtotalCost: subtotalCost,
+	// 			ComboID:      &comboID,
+	// 			ComboName:    &snap.Name,
+	// 		})
+	// 	}
+	// }
 
 	order.TotalAmount = totalAmount
 	order.TotalCost = totalCost
@@ -213,12 +320,36 @@ func (s *OrderServiceImpl) GetOrderByID(ctx context.Context, storeID uuid.UUID, 
 	return order, nil
 }
 
-func (s *OrderServiceImpl) GetOrdersByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error) {
-	orders, err := s.OrderRepo.GetByStoreID(ctx, storeID)
+func (s *OrderServiceImpl) GetOrdersByStoreID(ctx context.Context, storeID uuid.UUID, from, to time.Time) ([]models.Order, error) {
+	from, to, err := s.resolveOrderDateRange(from, to)
 	if err != nil {
 		return nil, err
 	}
-	return orders, nil
+
+	return s.OrderRepo.GetByStoreID(
+		ctx,
+		storeID,
+		from,
+		to,
+	)
+}
+
+func (s *OrderServiceImpl) GetDashboardByStoreID(
+	ctx context.Context,
+	storeID uuid.UUID,
+) ([]models.Order, []dtos.OrderSummary, error) {
+
+	orders, err := s.OrderRepo.GetTodayOrders(ctx, storeID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	summaries, err := s.OrderRepo.GetOrderSummariesByStoreID(ctx, storeID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return orders, summaries, nil
 }
 
 func (s *OrderServiceImpl) GetSalesReport(ctx context.Context, storeID uuid.UUID, from, to time.Time) (*dtos.SalesReportResponse, error) {
@@ -232,4 +363,31 @@ func (s *OrderServiceImpl) GetSalesReport(ctx context.Context, storeID uuid.UUID
 
 func (s *OrderServiceImpl) GetQueueStoreClient() redis_client.QueueStore {
 	return s.RedisQueueStore
+}
+
+func (s *OrderServiceImpl) resolveOrderDateRange(
+	from time.Time,
+	to time.Time,
+) (time.Time, time.Time, error) {
+
+	if from.IsZero() && to.IsZero() {
+		loc, err := time.LoadLocation("Africa/Lagos")
+		if err != nil {
+			return time.Time{}, time.Time{}, err
+		}
+
+		now := time.Now().In(loc)
+
+		from = time.Date(
+			now.Year(),
+			now.Month(),
+			now.Day(),
+			0, 0, 0, 0,
+			loc,
+		)
+
+		to = from.AddDate(0, 0, 1)
+	}
+
+	return from, to, nil
 }

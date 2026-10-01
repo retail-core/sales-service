@@ -24,10 +24,11 @@ type OrderItem struct {
 	Subtotal float64 `gorm:"type:numeric(10, 2);not null"`
 	SubtotalCost float64 `gorm:"type:numeric(10, 2);not null;default:0"`
 
-	// and order item can belong to either inventory or combo, so we can use nullable fields to store the reference
-	ComboID   *uuid.UUID `gorm:"type:uuid"`
-
-	ComboName *string    `gorm:"type:varchar(255)"`
+	// Selling unit snapshot — captured at time of sale so historical
+	// orders stay accurate even if the inventory's units change later.
+	UnitLabel  string    `gorm:"type:varchar(100);not null;default:'Piece'"`
+	QtyPerUnit int       `gorm:"not null;default:1"`
+	IsBaseUnit *bool      `gorm:"not null;default:true"`
 	
 }
 

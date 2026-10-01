@@ -31,7 +31,6 @@ func (c *HttpInventoryClient) ReserveAndGetSnapshot(ctx context.Context, storeID
 
 	reqBody := ReservationRequest{
 		InventoryItems: cReq.InventoryItems,
-		ComboItems:     cReq.ComboItems,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -72,6 +71,5 @@ func (c *HttpInventoryClient) ReserveAndGetSnapshot(ctx context.Context, storeID
 	return &ReservationResponse{
 		ReservationID:      response.ReservationID,
 		InventorySnapshots: response.InventorySnapshots,
-		ComboSnapshots:     response.ComboSnapshots,
 	}, nil
 }

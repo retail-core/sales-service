@@ -41,6 +41,7 @@ func ConfigureRoutes(database *gorm.DB, redisClient *redis.Client, mqPublisher *
 		v1.Post("/stores/{store_id}/orders", orderHandler.CreateOrder)
 		v1.Get("/stores/{store_id}/orders/{order_id}", orderHandler.GetOrder)
 		v1.Get("/stores/{store_id}/orders", orderHandler.GetOrdersByStoreID)
+		v1.Get("/stores/{store_id}/orders/dashboard", orderHandler.GetDashboardByStoreID)
 		v1.Get("/stores/{store_id}/sales/report", orderHandler.GetSalesReport)
 	})
 

@@ -87,16 +87,53 @@ func (h *OrderHandler) GetOrdersByStoreID(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	orders, err := h.Service.GetOrdersByStoreID(r.Context(), storeID)
+	from, to, err := parseOrderDateRange(r)
 	if err != nil {
 		httpx.WriteError(w, err)
 		return
 	}
 
-	response := make([]dtos.OrderResponse, len(orders))
+	orders, err := h.Service.GetOrdersByStoreID(r.Context(), storeID, from, to)
+	if err != nil { 
+		httpx.WriteError(w, err)
+		return 
+	}
+
+	orderResponses := make([]dtos.OrderResponse, len(orders)) 
+	for i, order := range orders { 
+		orderResponses[i] = mappers.ToOrderResponse(&order) 
+	} 
+	
+	httpx.WriteJSON(w, http.StatusOK, orderResponses)
+}
+
+func (h *OrderHandler) GetDashboardByStoreID(w http.ResponseWriter, r *http.Request) {
+	storeIDParam := chi.URLParam(r, "store_id")
+
+	storeID, err := uuid.FromString(storeIDParam)
+	if err != nil {
+		httpx.WriteError(w, errors.BadRequest("store_id must be valid UUID string"))
+		return
+	}
+
+	orders, summaries, err := h.Service.GetDashboardByStoreID(
+		r.Context(),
+		storeID,
+	)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+
+	orderResponses := make([]dtos.OrderResponse, len(orders))
 
 	for i, order := range orders {
-		response[i] = mappers.ToOrderResponse(&order)
+		orderResponses[i] = mappers.ToOrderResponse(&order)
+	}
+
+	response := dtos.GetOrdersByStoreResponse{
+		Orders:    orderResponses,
+		Summaries: summaries,
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, response)
@@ -154,6 +191,38 @@ func parseDateRange(r *http.Request) (time.Time, time.Time, error) {
 
 	if to.Before(from) {
 		return time.Time{}, time.Time{}, errors.BadRequest("to must be after from")
+	}
+
+	return from, to, nil
+}
+
+func parseOrderDateRange(r *http.Request) (time.Time, time.Time, error) {
+	fromParam := r.URL.Query().Get("from")
+	toParam := r.URL.Query().Get("to")
+
+	var from, to time.Time
+
+	loc, err := time.LoadLocation("Africa/Lagos")
+	if err != nil {
+		return from, to, err
+	}
+
+	if fromParam != "" {
+		from, err = time.ParseInLocation("2006-01-02", fromParam, loc)
+		if err != nil {
+			return time.Time{}, time.Time{}, errors.BadRequest(
+				"from must be in YYYY-MM-DD format",
+			)
+		}
+	}
+
+	if toParam != "" {
+		to, err = time.ParseInLocation("2006-01-02", toParam, loc)
+		if err != nil {
+			return time.Time{}, time.Time{}, errors.BadRequest(
+				"to must be in YYYY-MM-DD format",
+			)
+		}
 	}
 
 	return from, to, nil

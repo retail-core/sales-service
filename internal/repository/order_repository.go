@@ -11,11 +11,18 @@ import (
 
 type OrderRepository interface {
 	CreateOrder(ctx context.Context, order *models.Order) (*models.Order, error)
-	
+
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Order, error)
-	GetByStoreID(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)
+	GetByStoreID(ctx context.Context, storeID uuid.UUID, from, to time.Time) ([]models.Order, error)
 
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) error
 	GetSalesReport(ctx context.Context, storeID uuid.UUID, from, to time.Time) (*dtos.SalesReportResponse, error)
 	GetTodayOrdersCount(ctx context.Context, storeID uuid.UUID) (int64, error)
+
+	GetTodayOrders(ctx context.Context, storeID uuid.UUID) ([]models.Order, error)
+
+	GetOrderSummariesByStoreID(
+		ctx context.Context,
+		storeID uuid.UUID,
+	) ([]dtos.OrderSummary, error)
 }

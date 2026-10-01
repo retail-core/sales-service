@@ -14,24 +14,21 @@ type InventorySnapshot struct {
 	CostPrice   *float64 `json:"cost_price,omitempty"`
 	Quantity    int32   `json:"quantity,omitempty"`
 	ImageUrl    string  `json:"image_url,omitempty"`
+
+	UnitID      string   `json:"unit_id"` // NEW — needed to disambiguate multiple units of the same inventory
+	UnitLabel   string    `json:"unit_label" validate:"required"`
+	QtyPerUnit  int       `json:"qty_per_unit" validate:"required,gt=0"`
+	IsBaseUnit  bool      `json:"is_base_unit"`
 }
 
-type ComboSnapshot struct {
-	ComboID   string  `json:"combo_id"`
-	Name      string  `json:"name"`
-	UnitPrice float64 `json:"unit_price"`
-	Items    []InventorySnapshot `json:"items"`
-}
 
 type ReservationResponse struct {
 	ReservationID uuid.UUID `json:"reservation_id"`
 	InventorySnapshots     []InventorySnapshot `json:"inventory_snapshots,omitempty"`
-	ComboSnapshots         []ComboSnapshot `json:"combo_snapshots,omitempty"`
 }
 
 type ReservationRequest struct {
 	InventoryItems []dtos.InventoryOrderItemRequest `json:"inventory_items" validate:"required,dive,required"`
-	ComboItems     []dtos.ComboOrderItemRequest     `json:"combo_items,omitempty" validate:"dive,required"`
 }
 
 type InventoryClient interface {
